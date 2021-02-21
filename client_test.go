@@ -14,9 +14,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var url string
-var srv *Server
-var server *httptest.Server
+var (
+	url    string
+	srv    *Server
+	server *httptest.Server
+)
 
 func setup(empty bool) {
 	// New Server
@@ -64,7 +66,7 @@ func TestClientSubscribe(t *testing.T) {
 	setup(false)
 	defer cleanup()
 
-	c := NewClient(url)
+	c, _ := NewClientWithOptions(url, OptionAutoReconnect(false))
 
 	events := make(chan *Event)
 	var cErr error
@@ -90,7 +92,7 @@ func TestClientChanSubscribeEmptyMessage(t *testing.T) {
 	setup(true)
 	defer cleanup()
 
-	c := NewClient(url)
+	c, _ := NewClientWithOptions(url, OptionAutoReconnect(false))
 
 	events := make(chan *Event)
 	err := c.SubscribeChan("test", events)
@@ -106,7 +108,7 @@ func TestClientChanSubscribe(t *testing.T) {
 	setup(false)
 	defer cleanup()
 
-	c := NewClient(url)
+	c, _ := NewClientWithOptions(url, OptionAutoReconnect(false))
 
 	events := make(chan *Event)
 	err := c.SubscribeChan("test", events)
@@ -128,7 +130,7 @@ func TestClientOnDisconnect(t *testing.T) {
 	setup(false)
 	defer cleanup()
 
-	c := NewClient(url)
+	c, _ := NewClientWithOptions(url, OptionAutoReconnect(false))
 
 	called := make(chan bool)
 	c.OnDisconnect(func(client *Client) {
@@ -147,7 +149,7 @@ func TestClientChanReconnect(t *testing.T) {
 	setup(false)
 	defer cleanup()
 
-	c := NewClient(url)
+	c, _ := NewClientWithOptions(url, OptionAutoReconnect(false))
 
 	events := make(chan *Event)
 	err := c.SubscribeChan("test", events)
@@ -173,7 +175,7 @@ func TestClientUnsubscribe(t *testing.T) {
 	setup(false)
 	defer cleanup()
 
-	c := NewClient(url)
+	c, _ := NewClientWithOptions(url, OptionAutoReconnect(false))
 
 	events := make(chan *Event)
 	err := c.SubscribeChan("test", events)
@@ -190,7 +192,7 @@ func TestClientUnsubscribeNonBlock(t *testing.T) {
 	setupCount(false, count)
 	defer cleanup()
 
-	c := NewClient(url)
+	c, _ := NewClientWithOptions(url, OptionAutoReconnect(false))
 
 	events := make(chan *Event)
 	err := c.SubscribeChan("test", events)
@@ -202,7 +204,7 @@ func TestClientUnsubscribeNonBlock(t *testing.T) {
 		assert.Nil(t, merr)
 		assert.Equal(t, []byte(`ping`), msg)
 	}
-	//No more data is available to be read in the channel
+	// No more data is available to be read in the channel
 	// Make sure Unsubscribe returns quickly
 	doneCh := make(chan *Event)
 	go func() {
