@@ -12,6 +12,8 @@ import (
 	"time"
 )
 
+const maxBuffSize = 1024 * 1024
+
 // Event holds all of the event source fields
 type Event struct {
 	ID        []byte
@@ -31,6 +33,8 @@ type EventStreamReader struct {
 // NewEventStreamReader creates an instance of EventStreamReader.
 func NewEventStreamReader(eventStream io.Reader) *EventStreamReader {
 	scanner := bufio.NewScanner(eventStream)
+	scanner.Buffer(make([]byte, maxBuffSize), maxBuffSize)
+
 	split := func(data []byte, atEOF bool) (int, []byte, error) {
 		if atEOF && len(data) == 0 {
 			return 0, nil, nil

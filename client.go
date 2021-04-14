@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"sync"
 	"time"
@@ -120,6 +121,9 @@ func (c *Client) SubscribeWithContext(ctx context.Context, stream string, handle
 		for {
 			select {
 			case err := <-errorChan:
+				if err != nil {
+					log.Printf("[ERROR]failed to read from upstream, err: %v", err)
+				}
 				return err
 			case msg := <-eventChan:
 				handler(msg)
@@ -229,7 +233,7 @@ func (c *Client) readLoop(reader *EventStreamReader, outCh chan *Event, erChan c
 		// Read each new line and process the type of event
 		event, err := reader.ReadEvent()
 		if err != nil {
-			if err == io.EOF && !c.autoReconnect {				
+			if err == io.EOF && !c.autoReconnect {
 				erChan <- nil
 				return
 			}
