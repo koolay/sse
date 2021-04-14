@@ -229,8 +229,7 @@ func (c *Client) readLoop(reader *EventStreamReader, outCh chan *Event, erChan c
 		// Read each new line and process the type of event
 		event, err := reader.ReadEvent()
 		if err != nil {
-			if err == io.EOF && !c.autoReconnect {
-				fmt.Println(1)
+			if err == io.EOF && !c.autoReconnect {				
 				erChan <- nil
 				return
 			}
