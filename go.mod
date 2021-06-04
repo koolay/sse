@@ -1,4 +1,4 @@
-module github.com/r3labs/sse
+module github.com/koolay/sse/v2
 
 go 1.13
 

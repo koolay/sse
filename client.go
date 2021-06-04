@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"sync"
 	"time"
@@ -33,6 +34,8 @@ type ResponseValidator func(c *Client, resp *http.Response) error
 
 // Client handles an incoming server stream
 type Client struct {
+	autoReconnect     bool
+	logger            DebugLog
 	URL               string
 	Connection        *http.Client
 	Retry             time.Time
@@ -47,13 +50,44 @@ type Client struct {
 	mu                sync.Mutex
 }
 
+type ClientOption func(c *Client) error
+
+// OptionAutoReconnect reconnect server if failed
+func OptionAutoReconnect(auto bool) ClientOption {
+	return func(c *Client) error {
+		c.autoReconnect = auto
+		return nil
+	}
+}
+
+func OptionLog(logger DebugLog) ClientOption {
+	return func(c *Client) error {
+		c.logger = logger
+		return nil
+	}
+}
+
+func NewClientWithOptions(url string, options ...ClientOption) (*Client, error) {
+	client := NewClient(url)
+
+	for _, op := range options {
+		if err := op(client); err != nil {
+			return nil, err
+		}
+	}
+
+	return client, nil
+}
+
 // NewClient creates a new client
 func NewClient(url string) *Client {
 	return &Client{
-		URL:        url,
-		Connection: &http.Client{},
-		Headers:    make(map[string]string),
-		subscribed: make(map[chan *Event]chan bool),
+		logger:        &NoLog{},
+		autoReconnect: false,
+		URL:           url,
+		Connection:    &http.Client{},
+		Headers:       make(map[string]string),
+		subscribed:    make(map[chan *Event]chan bool),
 	}
 }
 
@@ -65,10 +99,13 @@ func (c *Client) Subscribe(stream string, handler func(msg *Event)) error {
 // SubscribeWithContext to a data stream with context
 func (c *Client) SubscribeWithContext(ctx context.Context, stream string, handler func(msg *Event)) error {
 	operation := func() error {
+		c.logger.Logf("Start request to server with stream: %s", stream)
+
 		resp, err := c.request(ctx, stream)
 		if err != nil {
 			return err
 		}
+
 		if validator := c.ResponseValidator; validator != nil {
 			err = validator(c, resp)
 			if err != nil {
@@ -85,6 +122,9 @@ func (c *Client) SubscribeWithContext(ctx context.Context, stream string, handle
 		for {
 			select {
 			case err := <-errorChan:
+				if err != nil {
+					log.Printf("[ERROR]failed to read from upstream, err: %v", err)
+				}
 				return err
 			case msg := <-eventChan:
 				handler(msg)
@@ -194,10 +234,11 @@ func (c *Client) readLoop(reader *EventStreamReader, outCh chan *Event, erChan c
 		// Read each new line and process the type of event
 		event, err := reader.ReadEvent()
 		if err != nil {
-			if err == io.EOF {
+			if err == io.EOF && !c.autoReconnect {
 				erChan <- nil
 				return
 			}
+
 			// run user specified disconnect function
 			if c.disconnectcb != nil {
 				c.disconnectcb(c)
