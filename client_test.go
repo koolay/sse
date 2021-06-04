@@ -23,11 +23,26 @@ var (
 	server *httptest.Server
 )
 
+var mldata = `{
+	"key": "value",
+	"array": [
+		1,
+		2,
+		3
+	]
+}`
+
 func setup(empty bool) {
 	// New Server
 	srv = newServer()
 	// Send almost-continuous string of events to the client
 	go publishMsgs(srv, empty, 100000000)
+}
+
+func setupMultiline() {
+	srv = newServer()
+	srv.SplitData = true
+	go publishMultilineMessages(srv, 100000000)
 }
 
 func setupCount(empty bool, count int) {
@@ -75,6 +90,12 @@ func publishMsgs(s *Server, empty bool, count int) {
 	}
 }
 
+func publishMultilineMessages(s *Server, count int) {
+	for a := 0; a < count; a++ {
+		s.Publish("test", &Event{ID: []byte("123456"), Data: []byte(mldata)})
+	}
+}
+
 func cleanup() {
 	server.CloseClientConnections()
 	server.Close()
@@ -102,6 +123,33 @@ func TestClientSubscribe(t *testing.T) {
 		msg, err := wait(events, time.Second*1)
 		require.Nil(t, err)
 		assert.Equal(t, []byte(`ping`), msg)
+	}
+
+	assert.Nil(t, cErr)
+}
+
+func TestClientSubscribeMultiline(t *testing.T) {
+	setupMultiline()
+	defer cleanup()
+
+	c := NewClient(url)
+
+	events := make(chan *Event)
+	var cErr error
+
+	go func() {
+		cErr = c.Subscribe("test", func(msg *Event) {
+			if msg.Data != nil {
+				events <- msg
+				return
+			}
+		})
+	}()
+
+	for i := 0; i < 5; i++ {
+		msg, err := wait(events, time.Second*1)
+		require.Nil(t, err)
+		assert.Equal(t, []byte(mldata), msg)
 	}
 
 	assert.Nil(t, cErr)
