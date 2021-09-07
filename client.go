@@ -112,6 +112,7 @@ func (c *Client) SubscribeWithContext(ctx context.Context, stream string, handle
 				return err
 			}
 		} else if resp.StatusCode != 200 {
+			resp.Body.Close()
 			return fmt.Errorf("could not connect to stream: %s", http.StatusText(resp.StatusCode))
 		}
 		defer resp.Body.Close()
@@ -166,6 +167,7 @@ func (c *Client) SubscribeChanWithContext(ctx context.Context, stream string, ch
 				return err
 			}
 		} else if resp.StatusCode != 200 {
+			resp.Body.Close()
 			return fmt.Errorf("could not connect to stream: %s", http.StatusText(resp.StatusCode))
 		}
 		defer resp.Body.Close()
