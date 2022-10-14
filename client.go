@@ -37,7 +37,6 @@ type Client struct {
 	autoReconnect     bool
 	logger            DebugLog
 	URL               string
-	Connection        *http.Client
 	Retry             time.Time
 	subscribed        map[chan *Event]chan bool
 	Headers           map[string]string
@@ -85,7 +84,6 @@ func NewClient(url string) *Client {
 		logger:        &NoLog{},
 		autoReconnect: false,
 		URL:           url,
-		Connection:    &http.Client{},
 		Headers:       make(map[string]string),
 		subscribed:    make(map[chan *Event]chan bool),
 	}
@@ -324,7 +322,13 @@ func (c *Client) request(ctx context.Context, stream string) (*http.Response, er
 		req.Header.Set(k, v)
 	}
 
-	return c.Connection.Do(req)
+	client := newHttpClient()
+	client.CloseIdleConnections()
+	return client.Do(req)
+}
+
+func newHttpClient() *http.Client {
+	return &http.Client{}
 }
 
 func (c *Client) processEvent(msg []byte) (event *Event, err error) {
