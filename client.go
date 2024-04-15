@@ -55,6 +55,7 @@ type Client struct {
 	mu                sync.Mutex
 	EncodingBase64    bool
 	Connected         bool
+	AutoReconnect     bool
 }
 
 // NewClient creates a new client
@@ -65,6 +66,7 @@ func NewClient(url string, opts ...func(c *Client)) *Client {
 		Headers:       make(map[string]string),
 		subscribed:    make(map[chan *Event]chan struct{}),
 		maxBufferSize: 1 << 16,
+		AutoReconnect: false,
 	}
 
 	for _, opt := range opts {
@@ -80,7 +82,11 @@ func (c *Client) Subscribe(stream string, handler func(msg *Event)) error {
 }
 
 // SubscribeWithContext to a data stream with context
-func (c *Client) SubscribeWithContext(ctx context.Context, stream string, handler func(msg *Event)) error {
+func (c *Client) SubscribeWithContext(
+	ctx context.Context,
+	stream string,
+	handler func(msg *Event),
+) error {
 	operation := func() error {
 		resp, err := c.request(ctx, stream)
 		if err != nil {
@@ -126,7 +132,11 @@ func (c *Client) SubscribeChan(stream string, ch chan *Event) error {
 }
 
 // SubscribeChanWithContext sends all events to the provided channel with context
-func (c *Client) SubscribeChanWithContext(ctx context.Context, stream string, ch chan *Event) error {
+func (c *Client) SubscribeChanWithContext(
+	ctx context.Context,
+	stream string,
+	ch chan *Event,
+) error {
 	var connected bool
 	errch := make(chan error)
 	c.mu.Lock()
@@ -213,9 +223,11 @@ func (c *Client) readLoop(reader *EventStreamReader, outCh chan *Event, erChan c
 		// Read each new line and process the type of event
 		event, err := reader.ReadEvent()
 		if err != nil {
-			if err == io.EOF {
-				erChan <- nil
-				return
+			if errors.Is(err, io.EOF) {
+				if !c.AutoReconnect {
+					erChan <- nil
+					return
+				}
 			}
 			// run user specified disconnect function
 			if c.disconnectcb != nil {
