@@ -148,16 +148,17 @@ func (c *Client) SubscribeChanWithContext(
 		if err != nil {
 			return err
 		}
+
+		defer resp.Body.Close()
+
 		if validator := c.ResponseValidator; validator != nil {
 			err = validator(c, resp)
 			if err != nil {
 				return err
 			}
-		} else if resp.StatusCode != 200 {
-			resp.Body.Close()
+		} else if resp.StatusCode != http.StatusOK {
 			return fmt.Errorf("could not connect to stream: %s", http.StatusText(resp.StatusCode))
 		}
-		defer resp.Body.Close()
 
 		if !connected {
 			// Notify connect
@@ -185,7 +186,6 @@ func (c *Client) SubscribeChanWithContext(
 				case <-c.subscribed[ch]:
 					return nil
 				case ch <- msg:
-					// message sent
 				}
 			}
 		}
